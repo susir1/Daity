@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+  <title>Daity</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Toast 通知容器 -->
+  <div id="toast-container"></div>
+
+  <!-- 标签右键菜单 -->
+  <div id="tag-context-menu" class="context-menu">
+    <div class="context-menu-item" data-action="pin">
+      <span>📌</span> <span data-i18n="tagPin">置顶</span>
+    </div>
+    <div class="context-menu-item" data-action="rename">
+      <span>✏️</span> <span data-i18n="tagEditLabel">编辑标签</span>
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item context-menu-danger" data-action="delete">
+      <span>🗑️</span> <span data-i18n="btnDelete">删除</span>
+    </div>
+  </div>
+
+  <div id="app">
+    <!-- 顶部栏 -->
+    <header id="topbar">
+      <h1 class="app-title" data-i18n="appTitle">📋 Daity</h1>
+      <div class="topbar-actions">
+        <button id="btn-settings" class="icon-btn" data-i18n="btnSettings" data-i18n-attr="title" title="⚙️">⚙️</button>
+      </div>
+    </header>
+
+    <!-- 主体区域 -->
+    <div id="main-container">
+      <!-- 左侧标签栏 -->
+      <aside id="sidebar">
+        <div class="sidebar-header">
+          <h3 data-i18n="tagFilter">🏷️ 标签筛选</h3>
+        </div>
+        <ul id="tag-list">
+          <!-- 完全由 JS 动态渲染，避免 insertBefore 位置错乱 -->
+        </ul>
+        <div class="sidebar-footer">
+          <button id="btn-new-tag" class="btn-small" data-i18n="btnNewTag">+ 新建标签</button>
+        </div>
+      </aside>
+
+      <!-- 右侧任务区域 -->
+      <main id="content">
+        <!-- 搜索与添加栏 -->
+        <div id="toolbar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" data-i18n="searchPlaceholder" data-i18n-attr="placeholder" placeholder="搜索任务...">
+          </div>
+          <button id="btn-add-task" class="btn-primary" data-i18n="btnAddTask">+ 添加任务</button>
+        </div>
+
+        <!-- 任务列表 -->
+        <div id="task-list-container">
+          <ul id="task-list">
+            <!-- 任务动态渲染 -->
+          </ul>
+          <div id="empty-state" class="empty-state">
+            <div class="empty-icon">📝</div>
+            <p id="empty-text" data-i18n="emptyNoTasks">还没有任务</p>
+            <p class="empty-hint" id="empty-hint-text" data-i18n="emptyHint">点击 "+ 添加任务" 开始吧！</p>
+          </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <footer id="statusbar">
+          <span id="status-pending-text">⏳ 0 个待完成</span>
+          <span class="status-sep">|</span>
+          <span id="status-daily-text">🔄 0 个每日任务</span>
+          <span class="status-sep">|</span>
+          <span id="status-total-text">📊 共 0 个任务</span>
+        </footer>
+      </main>
+    </div>
+
+    <!-- 添加/编辑任务弹窗 -->
+    <div id="modal-task" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-title" data-i18n="modalAddTitle">添加任务</h2>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="input-title" data-i18n="inputTitle" data-i18n-attr="placeholder" placeholder="任务标题" autofocus>
+          <div id="modal-task-type">
+            <label class="radio-label">
+              <input type="radio" name="task-type" value="normal" checked> <span data-i18n="taskTypeNormal">普通任务</span>
+            </label>
+            <label class="radio-label daily-radio">
+              <input type="radio" name="task-type" value="daily"> <span data-i18n="taskTypeDaily">🔄 每日任务</span>
+            </label>
+          </div>
+          <div class="form-row">
+            <label data-i18n="labelTag">🏷️ 标签</label>
+            <div id="tag-selector" class="tag-selector">
+              <!-- 动态生成 -->
+            </div>
+            <input type="text" id="input-new-tag" data-i18n="inputNewTag" data-i18n-attr="placeholder" placeholder="输入新标签名称..." class="input-new-tag">
+          </div>
+          <div class="form-row">
+            <label data-i18n="labelDeadline">📅 截止日期</label>
+            <input type="datetime-local" id="input-deadline">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-task" class="btn-secondary" data-i18n="btnCancel">取消</button>
+          <button id="btn-save-task" class="btn-primary" data-i18n="btnSave">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div id="modal-delete" class="modal">
+      <div class="modal-content modal-small">
+        <div class="modal-header">
+          <h2 data-i18n="modalDeleteTitle">确认删除</h2>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p data-i18n="deleteConfirm">确定要删除这个任务吗？</p>
+          <p id="delete-task-title" class="delete-task-name"></p>
+          <p class="delete-hint" data-i18n="deleteHint">此操作不可撤销</p>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-delete" class="btn-secondary" data-i18n="btnCancel">取消</button>
+          <button id="btn-confirm-delete" class="btn-danger" data-i18n="btnDelete">删除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="modal-settings" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 data-i18n="modalSettingsTitle">⚙️ 设置</h2>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <label data-i18n="labelLanguage">🌐 界面语言</label>
+            <select id="select-language" class="form-select">
+              <option value="zh-CN" data-i18n="langZhCN">中文</option>
+              <option value="en-US" data-i18n="langEnUS">English</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label data-i18n="labelResetTime">⏰ 每日重置时间</label>
+            <div class="reset-time-row">
+              <input type="number" id="input-reset-hour" min="0" max="23" value="4" class="time-input" title="小时">
+              <span class="time-sep">:</span>
+              <input type="number" id="input-reset-minute" min="0" max="59" value="0" class="time-input" title="分钟">
+            </div>
+            <p class="form-hint" data-i18n="hintResetTime">到达此时间后每日任务自动重置为未完成</p>
+          </div>
+          <div class="form-row">
+            <label data-i18n="labelStoragePath">📁 数据存储路径</label>
+            <div class="path-input-row">
+              <input type="text" id="input-storage-path" placeholder="默认: ./Daily">
+              <button id="btn-browse-path" class="btn-secondary btn-small" data-i18n="btnBrowse">浏览...</button>
+            </div>
+            <p class="form-hint" data-i18n="hintStoragePath">修改后数据将自动迁移到新路径</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-settings" class="btn-secondary" data-i18n="btnCancel">取消</button>
+          <button id="btn-save-settings" class="btn-primary" data-i18n="btnSaveSettings">保存设置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新建标签弹窗 -->
+    <div id="modal-new-tag" class="modal">
+      <div class="modal-content modal-small">
+        <div class="modal-header">
+          <h2 data-i18n="modalNewTagTitle">新建标签</h2>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="input-tag-name" data-i18n="inputTagName" data-i18n-attr="placeholder" placeholder="输入标签名称" autofocus>
+          <div class="form-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="input-tag-daily">
+              <span data-i18n="labelTagDaily">🔄 每日重置（该标签下的任务每天自动重置为未完成）</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-tag" class="btn-secondary" data-i18n="btnCancel">取消</button>
+          <button id="btn-save-tag" class="btn-primary" data-i18n="btnCreate">创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑标签弹窗 -->
+    <div id="modal-edit-tag" class="modal">
+      <div class="modal-content modal-small">
+        <div class="modal-header">
+          <h2 data-i18n="modalEditTagTitle">编辑标签</h2>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <input type="text" id="input-edit-tag-name" data-i18n="inputTagName" data-i18n-attr="placeholder" placeholder="输入标签名称" autofocus>
+          <div class="form-row">
+            <label class="checkbox-label">
+              <input type="checkbox" id="input-edit-tag-daily">
+              <span data-i18n="labelTagDaily">🔄 每日重置（该标签下的任务每天自动重置为未完成）</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-edit-tag" class="btn-secondary" data-i18n="btnCancel">取消</button>
+          <button id="btn-save-edit-tag" class="btn-primary" data-i18n="btnSaveTag">保存修改</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
