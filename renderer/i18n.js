@@ -101,6 +101,8 @@ const i18n = {
 
       // Toast / 错误提示
       toastError: '操作失败，请重试',
+      toastTagConvertedToDaily: '已将标签设为每日重置',
+      toastTagAlreadyExists: '标签已存在',
     },
 
     'en-US': {
@@ -201,6 +203,8 @@ const i18n = {
 
       // Toast / error
       toastError: 'Operation failed, please retry',
+      toastTagConvertedToDaily: 'Tag set to daily reset',
+      toastTagAlreadyExists: 'Tag already exists',
     }
   },
 

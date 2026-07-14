@@ -168,6 +168,22 @@ cd D:\1computer\claudeProject\Daity
 **根因**：winCodeSign 7z 含 macOS 符号链接，Windows 非管理员无法创建
 **解决**：以管理员运行 build-installer.ps1，或用 `--dir` 跳过 NSIS 步骤
 
+### 5. 新建每日标签不显示在"每日标签"下（已修复）
+**现象**：新建标签时勾选"每日重置"，但新标签不出现在侧边栏「📅 每日标签」分组中
+**根因**：`app.js` 中标签创建守卫 `if (tagName && !allTags.includes(tagName))` — 若标签名已存在于 `allTags`（例如之前创建过普通标签、或某任务已使用该标签名），整个创建逻辑被静默跳过，标签不会加入 `dailyTags`，且用户无任何反馈
+**解决 (2026-07-14)**：
+  - 重构 `#btn-save-tag` 点击和 `#input-tag-name` Enter 两个处理程序，逻辑统一
+  - 标签已存在 + 勾选"每日重置"但不在 `dailyTags` 中 → 自动转换为每日标签，显示成功 toast
+  - 标签已存在（其他情况） → 显示"标签已存在"错误提示，不再静默关闭弹窗
+  - Enter 键处理程序现在正确 `await` 保存操作，与按钮行为一致
+  - 新增 i18n 翻译：`toastTagConvertedToDaily`、`toastTagAlreadyExists`（中/英）
+
+### 6. 重复构建时 app.asar 被锁定（Windows）
+**现象**：`remove app.asar: The process cannot access the file because it is being used by another process`
+**根因**：系统进程（可能是杀毒软件、搜索索引器或文件管理器预览）持有 `app.asar` 的删除锁（FILE_SHARE_DELETE 权限不足），但覆盖写入不受影响
+**临时解决**：重启电脑释放文件锁后再构建；或先用 `npx asar pack` 手动打包覆盖旧文件
+**备注**：electron-builder 的 `EnsureEmptyDir` 步骤需要先删除再写入，与覆盖写入不兼容
+
 ## 关键设计决策
 
 - **不用框架**：保持轻量，原生 JS 足够
@@ -181,15 +197,17 @@ cd D:\1computer\claudeProject\Daity
 - **标签列表渲染**：全量 `innerHTML = ''` 重建，避免 insertBefore 位置错乱；置顶优先排序
 - **增量 DOM 更新**：toggle/编辑任务时只更新单个 `<li>` 元素，不复建整个列表
 - **IPC 错误处理**：`safeCall()` 封装 + Toast 通知，避免静默失败
+- **标签创建去重**：新建标签时若同名标签已存在，自动判断是否需要转换为每日标签；不再静默跳过，所有路径均有 Toast 反馈
 - **存储路径安全**：打包版使用 `app.getPath('userData')`，避免 electron-builder 重建清空数据
 
 ## 修改项目时的注意事项
 
 1. **修改任何源文件后**需要重新运行 `npx electron-builder --win --dir` 打包，运行 exe 才会看到变化
-2. **重建打包前先杀进程**：`Get-Process Daity \| Stop-Process -Force`，否则文件被锁导致打包失败
+2. **重建打包前先杀进程**：`Get-Process Daity \| Stop-Process -Force`，否则文件被锁导致打包失败；如遇 `app.asar` 无法删除，需重启电脑释放系统级文件锁
 3. **GPU 相关**：不要添加 `--in-process-gpu` 标志，会导致渲染进程崩溃；`--disable-gpu` 已通过 `app.relaunch()` 自动添加
 4. **存储路径**：始终使用 `getDefaultStoragePath()` 函数，不要直接用 `__dirname`
 5. **i18n**：新增 UI 文本需同时在 `i18n.js` 的 `zh-CN` 和 `en-US` 中添加翻译
 6. **样式**：CSS 变量定义在 `:root` 中，支持一键换主题
 7. **每日标签**：`dailyTags` 存在 settings.json 中，默认值为 `["每日任务"]`；新建标签时勾选"每日重置"即加入此列表
-8. **数据安全**：打包版数据在 `%APPDATA%\Daity\Daily\`，不受重建影响；开发版数据在项目根 `Daily\`，不要提交到 git
+8. **标签创建**：两个处理程序（按钮点击 + Enter 键）必须保持逻辑一致；若标签名已存在不应静默跳过，需给用户 Toast 反馈
+9. **数据安全**：打包版数据在 `%APPDATA%\Daity\Daily\`，不受重建影响；开发版数据在项目根 `Daily\`，不要提交到 git

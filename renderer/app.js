@@ -970,10 +970,21 @@ function bindEvents() {
       return;
     }
 
-    if (tagName && !allTags.includes(tagName)) {
+    // 检查标签是否已存在于 allTags
+    if (allTags.includes(tagName)) {
+      // 标签已存在，如果用户勾选了每日重置但标签不在 dailyTags 中，帮用户转换
+      if (isDaily && !dailyTags.includes(tagName)) {
+        dailyTags.push(tagName);
+        await safeCall(() => window.daityAPI.saveDailyTags(dailyTags));
+        renderTagList();
+        showToast(i18n.t('toastTagConvertedToDaily'), 'success');
+      } else {
+        showToast(i18n.t('toastTagAlreadyExists'), 'error');
+      }
+    } else {
       allTags.push(tagName);
       // 如果勾选了每日重置，添加到 dailyTags
-      if (isDaily && !dailyTags.includes(tagName)) {
+      if (isDaily) {
         dailyTags.push(tagName);
         await safeCall(() => window.daityAPI.saveDailyTags(dailyTags));
       }
@@ -985,7 +996,7 @@ function bindEvents() {
     }
     closeModal(modalNewTag);
   });
-  $('#input-tag-name').addEventListener('keydown', (e) => {
+  $('#input-tag-name').addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') {
       const tagName = $('#input-tag-name').value.trim();
       const isDaily = $('#input-tag-daily').checked;
@@ -995,11 +1006,20 @@ function bindEvents() {
         return;
       }
 
-      if (tagName && !allTags.includes(tagName)) {
-        allTags.push(tagName);
+      if (allTags.includes(tagName)) {
         if (isDaily && !dailyTags.includes(tagName)) {
           dailyTags.push(tagName);
-          window.daityAPI.saveDailyTags(dailyTags).catch(() => {});
+          await safeCall(() => window.daityAPI.saveDailyTags(dailyTags));
+          renderTagList();
+          showToast(i18n.t('toastTagConvertedToDaily'), 'success');
+        } else {
+          showToast(i18n.t('toastTagAlreadyExists'), 'error');
+        }
+      } else {
+        allTags.push(tagName);
+        if (isDaily) {
+          dailyTags.push(tagName);
+          await safeCall(() => window.daityAPI.saveDailyTags(dailyTags));
         }
         renderTagList();
         if (modalTask.classList.contains('show')) {
