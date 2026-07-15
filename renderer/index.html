@@ -108,6 +108,38 @@
             <input type="text" id="input-new-tag" data-i18n="inputNewTag" data-i18n-attr="placeholder" placeholder="输入新标签名称..." class="input-new-tag">
           </div>
           <div class="form-row">
+            <label data-i18n="labelTimer">⏱️ 计时（可选）</label>
+            <div id="timer-mode-row" class="timer-mode-row">
+              <label class="radio-label">
+                <input type="radio" name="timer-mode" value="none" checked> <span data-i18n="timerNone">无</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="timer-mode" value="forward"> <span data-i18n="timerModeForward">正向计时（从0开始累计）</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="timer-mode" value="pomodoro"> <span data-i18n="timerModePomodoro">🍅 番茄钟</span>
+              </label>
+            </div>
+          </div>
+          <div id="pomodoro-config" style="display:none;">
+            <div class="form-row">
+              <label data-i18n="labelWorkDuration">🍅 专注时长（分钟）</label>
+              <input type="number" id="input-work-duration" min="1" max="120" value="25">
+            </div>
+            <div class="form-row">
+              <label data-i18n="labelShortBreak">☕ 短休息（分钟）</label>
+              <input type="number" id="input-short-break" min="1" max="60" value="5">
+            </div>
+            <div class="form-row">
+              <label data-i18n="labelLongBreak">☕ 长休息（分钟）</label>
+              <input type="number" id="input-long-break" min="1" max="120" value="15">
+            </div>
+            <div class="form-row">
+              <label data-i18n="labelLongBreakInterval">🔄 长休息间隔（轮）</label>
+              <input type="number" id="input-long-break-interval" min="1" max="10" value="4">
+            </div>
+          </div>
+          <div class="form-row">
             <label data-i18n="labelDeadline">📅 截止日期</label>
             <input type="datetime-local" id="input-deadline">
           </div>

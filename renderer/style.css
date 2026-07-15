@@ -947,6 +947,138 @@ body.tag-dragging .tag-item {
   margin-top: 6px;
 }
 
+/* ===== 任务计时器 ===== */
+.task-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 0;
+}
+
+.task-timer-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 10px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  line-height: 1;
+  color: var(--text-secondary);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.task-timer-btn:hover {
+  background: #e8f5e9;
+  border-color: var(--color-success);
+  color: var(--color-success);
+  box-shadow: 0 2px 6px rgba(39,174,96,0.15);
+  transform: scale(1.08);
+}
+
+.task-timer-btn.running {
+  background: var(--color-success);
+  color: white;
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 3px rgba(39,174,96,0.15);
+  animation: pulseRunning 2s ease-in-out infinite;
+}
+
+.task-timer-btn.running:hover {
+  background: #e74c3c;
+  border-color: #e74c3c;
+  box-shadow: 0 2px 8px rgba(231,76,60,0.2);
+  transform: scale(1.08);
+}
+
+@keyframes pulseRunning {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(39,174,96,0.15); }
+  50% { box-shadow: 0 0 0 6px rgba(39,174,96,0.06); }
+}
+
+.task-timer-display {
+  font-size: 12px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
+  flex-shrink: 1;
+  min-width: 40px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-timer-display.warning {
+  color: var(--color-warning);
+}
+
+.task-timer-display.overtime {
+  color: var(--color-danger);
+  animation: timerBlink 1s ease-in-out infinite;
+}
+
+@keyframes timerBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.task-pomodoro-count {
+  font-size: 10px;
+  color: var(--color-daily);
+  flex-shrink: 0;
+}
+
+.task-pomodoro-phase {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.task-pomodoro-phase.work {
+  background: #f3e5f5;
+  color: var(--color-daily);
+}
+
+.task-pomodoro-phase.shortBreak,
+.task-pomodoro-phase.longBreak {
+  background: #e8f5e9;
+  color: var(--color-success);
+}
+
+/* 弹窗中计时模式行 */
+.timer-mode-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+/* 番茄钟配置 */
+#pomodoro-config .form-row {
+  margin: 8px 0;
+}
+
+#pomodoro-config input[type="number"] {
+  width: 80px;
+  padding: 6px 10px;
+  text-align: center;
+}
+
 /* ===== 滚动条 ===== */
 ::-webkit-scrollbar {
   width: 6px;

@@ -135,6 +135,13 @@ function resetDailyTasks() {
   tasks.forEach(task => {
     // 仅处理每日任务（严格判定，防止误伤普通任务）
     if (!isDailyTask(task, dailyTags)) return;
+
+    // 每日任务：重置计时器
+    if (task.timer) {
+      task.timer = null;
+      changed = true;
+    }
+
     if (!task.completed) return;
 
     if (!task.lastCompletedDate) {
@@ -254,7 +261,8 @@ function setupIPC() {
       deadline: taskData.deadline || null,
       createdAt: new Date().toISOString(),
       completedAt: null,
-      lastCompletedDate: null
+      lastCompletedDate: null,
+      timer: taskData.timer || null
     };
     tasks.push(newTask);
     saveTasks(tasks);
@@ -297,6 +305,7 @@ function setupIPC() {
     }
     if (updates.deadline !== undefined) tasks[index].deadline = updates.deadline;
     if (updates.type !== undefined) tasks[index].type = updates.type;
+    if (updates.timer !== undefined) tasks[index].timer = updates.timer;
 
     saveTasks(tasks);
     return tasks[index];

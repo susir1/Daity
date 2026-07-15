@@ -99,6 +99,23 @@ const i18n = {
       langZhCN: '中文',
       langEnUS: 'English',
 
+      // 计时
+      labelTimer: '⏱️ 计时（可选）',
+      timerNone: '无',
+      timerModeForward: '正向计时（从0开始累计）',
+      timerModePomodoro: '🍅 番茄钟',
+      labelWorkDuration: '🍅 专注时长（分钟）',
+      labelShortBreak: '☕ 短休息（分钟）',
+      labelLongBreak: '☕ 长休息（分钟）',
+      labelLongBreakInterval: '🔄 长休息间隔（轮）',
+      phaseWork: '🍅 专注',
+      phaseShortBreak: '☕ 休息',
+      phaseLongBreak: '☕ 长休息',
+      timerStart: '开始计时',
+      timerStop: '暂停计时',
+      toastPomodoroWorkDone: '🍅 专注完成！开始休息',
+      toastPomodoroBreakDone: '☕ 休息结束！开始工作',
+
       // Toast / 错误提示
       toastError: '操作失败，请重试',
       toastTagConvertedToDaily: '已将标签设为每日重置',
@@ -200,6 +217,23 @@ const i18n = {
       // Language options
       langZhCN: '中文',
       langEnUS: 'English',
+
+      // Timer
+      labelTimer: '⏱️ Timer (optional)',
+      timerNone: 'None',
+      timerModeForward: 'Forward (count up)',
+      timerModePomodoro: '🍅 Pomodoro',
+      labelWorkDuration: '🍅 Focus (minutes)',
+      labelShortBreak: '☕ Short Break (minutes)',
+      labelLongBreak: '☕ Long Break (minutes)',
+      labelLongBreakInterval: '🔄 Long Break Interval (rounds)',
+      phaseWork: '🍅 Focus',
+      phaseShortBreak: '☕ Break',
+      phaseLongBreak: '☕ Long Break',
+      timerStart: 'Start Timer',
+      timerStop: 'Pause Timer',
+      toastPomodoroWorkDone: '🍅 Focus done! Time for a break',
+      toastPomodoroBreakDone: '☕ Break over! Back to work',
 
       // Toast / error
       toastError: 'Operation failed, please retry',

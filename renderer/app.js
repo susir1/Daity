@@ -11,6 +11,7 @@ let deleteTargetId = null;
 let editingTagOldName = null;     // 正在编辑的标签原名
 let searchDebounceTimer = null;
 let dragSrcTag = null;            // 当前拖拽的标签名
+let tickTimer = null;             // 全局计时器 interval（单个）
 
 // ========== DOM 引用 ==========
 const $ = (sel) => document.querySelector(sel);
@@ -62,6 +63,7 @@ async function init() {
   await loadPinnedAndOrder();
   renderTagList();
   renderTasks();
+  ensureTickRunning();
   updateStatusBar();
   bindEvents();
   checkDeadlines();
@@ -113,11 +115,225 @@ async function checkDeadlines() {
   await safeCall(() => window.daityAPI.checkDeadlines(), null, false);
 }
 
+// ========== 计时器 ==========
+function formatTimerDisplay(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getEffectiveElapsed(task) {
+  const t = task.timer;
+  if (!t) return 0;
+  if (t.running && t.startedAt) {
+    return t.elapsedMs + (Date.now() - new Date(t.startedAt).getTime());
+  }
+  return t.elapsedMs || 0;
+}
+
+function getEffectiveRemaining(task) {
+  const t = task.timer;
+  if (!t) return 0;
+  if (t.running && t.startedAt) {
+    return (t.remainingMs || 0) - (Date.now() - new Date(t.startedAt).getTime());
+  }
+  return t.remainingMs || 0;
+}
+
+function getNextPhase(timer) {
+  if (timer.mode !== 'pomodoro') return 'work';
+  if (timer.phase === 'work') {
+    const count = (timer.pomodoroCount || 0) + 1;
+    const interval = timer.longBreakInterval || 4;
+    return count % interval === 0 ? 'longBreak' : 'shortBreak';
+  }
+  return 'work';
+}
+
+function ensureTickRunning() {
+  const anyRunning = tasks.some(t => t.timer && t.timer.running);
+  if (anyRunning && !tickTimer) {
+    tickTimer = setInterval(onTick, 1000);
+  } else if (!anyRunning && tickTimer) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+  }
+}
+
+function onTick() {
+  const now = Date.now();
+  let anyRunning = false;
+  tasks.forEach(task => {
+    const t = task.timer;
+    if (!t || !t.running) return;
+    anyRunning = true;
+    if (t.mode === 'pomodoro') {
+      const remaining = (t.remainingMs || 0) - (now - new Date(t.startedAt).getTime());
+      if (remaining <= 0) {
+        completePhase(task.id);
+      } else {
+        updateTaskTimerDisplay(task.id);
+      }
+    } else {
+      updateTaskTimerDisplay(task.id);
+    }
+  });
+  if (!anyRunning) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+  }
+}
+
+function lazyInitTimer(task) {
+  if (!task.timer) {
+    task.timer = {
+      mode: 'forward',
+      elapsedMs: 0,
+      remainingMs: 0,
+      workDuration: 25,
+      shortBreakDuration: 5,
+      longBreakDuration: 15,
+      longBreakInterval: 4,
+      phase: 'work',
+      pomodoroCount: 0,
+      running: false,
+      startedAt: null
+    };
+  }
+}
+
+async function toggleTaskTimer(taskId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+  lazyInitTimer(task);
+  const t = task.timer;
+
+  if (t.running) {
+    // 暂停
+    const now = Date.now();
+    if (t.mode === 'pomodoro') {
+      t.remainingMs = Math.max(0, (t.remainingMs || 0) - (now - new Date(t.startedAt).getTime()));
+    } else {
+      t.elapsedMs = (t.elapsedMs || 0) + (now - new Date(t.startedAt).getTime());
+    }
+    t.running = false;
+    t.startedAt = null;
+    await saveTaskTimer(taskId);
+    updateTaskTimerDisplay(taskId);
+    ensureTickRunning();
+  } else {
+    // 开始
+    t.running = true;
+    t.startedAt = new Date().toISOString();
+    await saveTaskTimer(taskId);
+    updateTaskTimerDisplay(taskId);
+    ensureTickRunning();
+  }
+}
+
+async function completePhase(taskId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task || !task.timer) return;
+  const t = task.timer;
+
+  if (t.phase === 'work') {
+    t.pomodoroCount = (t.pomodoroCount || 0) + 1;
+    const nextPhase = getNextPhase(t);
+    t.phase = nextPhase;
+    t.remainingMs = (nextPhase === 'longBreak' ? (t.longBreakDuration || 15) : (t.shortBreakDuration || 5)) * 60 * 1000;
+    showToast(i18n.t('toastPomodoroWorkDone'), 'success');
+  } else {
+    t.phase = 'work';
+    t.remainingMs = (t.workDuration || 25) * 60 * 1000;
+    showToast(i18n.t('toastPomodoroBreakDone'), 'success');
+  }
+  t.running = true;
+  t.startedAt = new Date().toISOString();
+  await saveTaskTimer(taskId);
+  updateTaskTimerDisplay(taskId);
+}
+
+function updateTaskTimerDisplay(taskId) {
+  const task = tasks.find(t => t.id === taskId);
+  const taskEl = document.querySelector(`[data-task-id="${taskId}"]`);
+  if (!taskEl) return;
+
+  const btnEl = taskEl.querySelector('.task-timer-btn');
+  const displayEl = taskEl.querySelector('.task-timer-display');
+  const countEl = taskEl.querySelector('.task-pomodoro-count');
+  const phaseEl = taskEl.querySelector('.task-pomodoro-phase');
+
+  if (!btnEl || !displayEl) return;
+
+  if (!task || !task.timer) {
+    btnEl.textContent = '▶';
+    btnEl.classList.remove('running');
+    btnEl.title = i18n.t('timerStart');
+    displayEl.textContent = '';
+    displayEl.classList.remove('warning', 'overtime');
+    if (countEl) countEl.textContent = '';
+    if (phaseEl) { phaseEl.textContent = ''; phaseEl.className = 'task-pomodoro-phase'; }
+    return;
+  }
+
+  const t = task.timer;
+
+  if (t.running) {
+    btnEl.textContent = '⏸';
+    btnEl.classList.add('running');
+    btnEl.title = i18n.t('timerStop');
+  } else {
+    btnEl.textContent = '▶';
+    btnEl.classList.remove('running');
+    btnEl.title = i18n.t('timerStart');
+  }
+
+  if (t.mode === 'pomodoro') {
+    const remaining = getEffectiveRemaining(task);
+    displayEl.textContent = formatTimerDisplay(Math.max(0, remaining));
+    if (remaining <= 60000 && remaining > 0) {
+      displayEl.classList.add('warning');
+      displayEl.classList.remove('overtime');
+    } else if (remaining <= 0 && !t.running) {
+      displayEl.classList.add('overtime');
+      displayEl.classList.remove('warning');
+    } else {
+      displayEl.classList.remove('warning', 'overtime');
+    }
+    if (countEl) countEl.textContent = `🍅×${t.pomodoroCount || 0}`;
+    if (phaseEl) {
+      phaseEl.textContent = i18n.t(t.phase === 'work' ? 'phaseWork' : (t.phase === 'longBreak' ? 'phaseLongBreak' : 'phaseShortBreak'));
+      phaseEl.className = `task-pomodoro-phase ${t.phase}`;
+    }
+  } else {
+    const elapsed = getEffectiveElapsed(task);
+    displayEl.textContent = elapsed > 0 || t.running ? formatTimerDisplay(elapsed) : '';
+    displayEl.classList.remove('warning', 'overtime');
+    if (countEl) countEl.textContent = '';
+    if (phaseEl) { phaseEl.textContent = ''; phaseEl.className = 'task-pomodoro-phase'; }
+  }
+}
+
+async function saveTaskTimer(taskId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+  // 深拷贝 timer 避免引用问题
+  const timerCopy = task.timer ? JSON.parse(JSON.stringify(task.timer)) : null;
+  await safeCall(() => window.daityAPI.updateTask(taskId, { timer: timerCopy }), null, false);
+}
+
 // ========== 每日重置事件监听 ==========
 function listenDailyReset() {
   window.daityAPI.onDailyReset(async () => {
     await loadTasks();
     renderTasks();
+    // 停止所有计时（主进程已重置 timer 字段）
+    ensureTickRunning();
   });
 }
 
@@ -218,6 +434,12 @@ function buildTaskHTML(task) {
         </div>
       </div>
       ${dailyBadgeHtml}
+      <span class="task-timer">
+        <button class="task-timer-btn" data-action="timer" data-id="${task.id}" title="${i18n.t('timerStart')}">▶</button>
+        <span class="task-timer-display"></span>
+        <span class="task-pomodoro-count"></span>
+        <span class="task-pomodoro-phase"></span>
+      </span>
       <div class="task-actions">
         <button class="task-action-btn edit" data-action="edit" data-id="${task.id}" title="${i18n.t('taskTooltipEdit')}">✏️</button>
         ${actionBtnHtml}
@@ -266,6 +488,7 @@ function renderTasks() {
         case 'edit': openEditModal(id); break;
         case 'delete': openDeleteModal(id); break;
         case 'cancel-daily': cancelDailyTask(id); break;
+        case 'timer': toggleTaskTimer(id); break;
       }
     });
 
@@ -273,6 +496,12 @@ function renderTasks() {
   });
 
   updateStatusBar();
+  refreshAllTaskTimerDisplays();
+}
+
+// ========== 刷新所有任务计时显示 ==========
+function refreshAllTaskTimerDisplays() {
+  tasks.forEach(task => updateTaskTimerDisplay(task.id));
 }
 
 // ========== 增量更新单个任务项 ==========
@@ -302,11 +531,13 @@ function refreshSingleTask(taskId) {
       case 'edit': openEditModal(id); break;
       case 'delete': openDeleteModal(id); break;
       case 'cancel-daily': cancelDailyTask(id); break;
+      case 'timer': toggleTaskTimer(id); break;
     }
   });
 
   existingLi.replaceWith(newLi);
   updateStatusBar();
+  updateTaskTimerDisplay(taskId);
 }
 
 function updateStatusBar() {
@@ -692,6 +923,7 @@ async function deleteTask(id) {
   await safeCall(() => window.daityAPI.deleteTask(id));
   await loadTasks();
   renderTasks();
+  ensureTickRunning();
   updateTagListIfNeeded();
 }
 
@@ -764,8 +996,21 @@ function openAddModal() {
   // 自动设置任务类型：选中的标签中有每日标签 → daily，否则 normal
   updateTaskTypeRadio();
 
+  // 重置计时配置为"无"
+  resetTimerConfig();
+
   openModal(modalTask);
   $('#input-title').focus();
+}
+
+function resetTimerConfig() {
+  const noneRadio = document.querySelector('input[name="timer-mode"][value="none"]');
+  if (noneRadio) noneRadio.checked = true;
+  $('#pomodoro-config').style.display = 'none';
+  $('#input-work-duration').value = 25;
+  $('#input-short-break').value = 5;
+  $('#input-long-break').value = 15;
+  $('#input-long-break-interval').value = 4;
 }
 
 // 编辑任务弹窗
@@ -785,8 +1030,28 @@ function openEditModal(id) {
   $(`input[name="task-type"][value="${task.type}"]`).checked = true;
   updateTaskTypeRadio();
 
+  // 回填计时配置
+  populateTimerConfig(task);
+
   openModal(modalTask);
   $('#input-title').focus();
+}
+
+function populateTimerConfig(task) {
+  const timer = task.timer;
+  if (!timer) {
+    resetTimerConfig();
+    return;
+  }
+  const modeRadio = document.querySelector(`input[name="timer-mode"][value="${timer.mode}"]`);
+  if (modeRadio) modeRadio.checked = true;
+  $('#pomodoro-config').style.display = timer.mode === 'pomodoro' ? 'block' : 'none';
+  if (timer.mode === 'pomodoro') {
+    $('#input-work-duration').value = timer.workDuration || 25;
+    $('#input-short-break').value = timer.shortBreakDuration || 5;
+    $('#input-long-break').value = timer.longBreakDuration || 15;
+    $('#input-long-break-interval').value = timer.longBreakInterval || 4;
+  }
 }
 
 // 删除确认弹窗
@@ -843,7 +1108,52 @@ async function saveTaskFromModal() {
   const tags = getSelectedTags();
   const deadline = $('#input-deadline').value || null;
 
-  const taskData = { title, type, tags, deadline };
+  // 构建计时器配置
+  const timerMode = document.querySelector('input[name="timer-mode"]:checked').value;
+  let timer = null;
+  if (timerMode === 'forward') {
+    // 编辑时保持已有累计值，添加时初始化为 0
+    const existingTask = editingTaskId ? tasks.find(t => t.id === editingTaskId) : null;
+    const oldTimer = existingTask ? existingTask.timer : null;
+    const keepElapsed = (oldTimer && oldTimer.mode === 'forward') ? (oldTimer.elapsedMs || 0) : 0;
+    timer = {
+      mode: 'forward',
+      elapsedMs: keepElapsed,
+      remainingMs: 0,
+      workDuration: 25,
+      shortBreakDuration: 5,
+      longBreakDuration: 15,
+      longBreakInterval: 4,
+      phase: 'work',
+      pomodoroCount: 0,
+      running: false,
+      startedAt: null
+    };
+  } else if (timerMode === 'pomodoro') {
+    const workDuration = parseInt($('#input-work-duration').value, 10) || 25;
+    const shortBreakDuration = parseInt($('#input-short-break').value, 10) || 5;
+    const longBreakDuration = parseInt($('#input-long-break').value, 10) || 15;
+    const longBreakInterval = parseInt($('#input-long-break-interval').value, 10) || 4;
+    // 编辑时若模式没变，保留进度；否则重新初始化
+    const existingTask = editingTaskId ? tasks.find(t => t.id === editingTaskId) : null;
+    const oldTimer = existingTask ? existingTask.timer : null;
+    const keepState = (oldTimer && oldTimer.mode === 'pomodoro');
+    timer = {
+      mode: 'pomodoro',
+      elapsedMs: 0,
+      remainingMs: keepState ? (oldTimer.remainingMs || 0) : workDuration * 60 * 1000,
+      workDuration,
+      shortBreakDuration,
+      longBreakDuration,
+      longBreakInterval,
+      phase: keepState ? (oldTimer.phase || 'work') : 'work',
+      pomodoroCount: keepState ? (oldTimer.pomodoroCount || 0) : 0,
+      running: false,
+      startedAt: null
+    };
+  }
+
+  const taskData = { title, type, tags, deadline, timer };
 
   if (editingTaskId) {
     await updateTask(editingTaskId, taskData);
@@ -1087,6 +1397,13 @@ function bindEvents() {
     if (e.key === 'Escape') {
       closeAllModals();
     }
+  });
+
+  // 计时模式切换 → 显示/隐藏番茄钟配置
+  document.querySelectorAll('input[name="timer-mode"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      $('#pomodoro-config').style.display = radio.value === 'pomodoro' ? 'block' : 'none';
+    });
   });
 }
 

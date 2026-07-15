@@ -40,7 +40,8 @@ Daity/
 1. **任务 CRUD**：添加/编辑/删除/完成任务
 2. **分类标签**：预设+自定义，支持侧边栏筛选
 3. **截止日期**：日期选择器 + 临近/过期高亮 + Windows 系统通知
-4. **每日任务（标签化）**：新建标签时可勾选"每日重置"，该标签下所有任务自动每日重置
+4. **任务计时**：每个任务可选正向计时（秒表，默认）或番茄钟（专注/休息自动循环），单全局 interval 极低开销
+5. **每日任务（标签化）**：新建标签时可勾选"每日重置"，该标签下所有任务自动每日重置
    - 侧边栏分为「📅 每日标签」和「🏷️ 普通标签」两组
    - 📋 每日总览：紫色聚合筛选器，显示所有每日标签下的任务
    - 自定义重置时间：设置 → ⏰ 每日重置时间（默认凌晨 4:00）
@@ -67,7 +68,20 @@ Daity/
   "deadline": "ISO 8601 或 null",
   "createdAt": "ISO 8601",
   "completedAt": "ISO 8601 或 null",
-  "lastCompletedDate": "DateString 或 null"
+  "lastCompletedDate": "DateString 或 null",
+  "timer": null | {
+    "mode": "forward | pomodoro",
+    "elapsedMs": 0,
+    "remainingMs": 1500000,
+    "workDuration": 25,
+    "shortBreakDuration": 5,
+    "longBreakDuration": 15,
+    "longBreakInterval": 4,
+    "phase": "work | shortBreak | longBreak",
+    "pomodoroCount": 3,
+    "running": false,
+    "startedAt": "ISO 8601 或 null"
+  }
 }
 ```
 
@@ -196,6 +210,7 @@ cd D:\1computer\claudeProject\Daity
 - **标签管理**：右键菜单统一操作入口（置顶/编辑/删除），悬停仅显示拖拽手柄与删除按钮，标签名过长自动省略
 - **标签列表渲染**：全量 `innerHTML = ''` 重建，避免 insertBefore 位置错乱；置顶优先排序
 - **增量 DOM 更新**：toggle/编辑任务时只更新单个 `<li>` 元素，不复建整个列表
+- **任务计时**：正向计时（秒表）和番茄钟（专注→休息自动循环），每任务独立配置，全局单 `setInterval` 极低 CPU 占用，计时中零 IPC 仅 start/stop 时持久化
 - **IPC 错误处理**：`safeCall()` 封装 + Toast 通知，避免静默失败
 - **标签创建去重**：新建标签时若同名标签已存在，自动判断是否需要转换为每日标签；不再静默跳过，所有路径均有 Toast 反馈
 - **存储路径安全**：打包版使用 `app.getPath('userData')`，避免 electron-builder 重建清空数据
@@ -211,3 +226,4 @@ cd D:\1computer\claudeProject\Daity
 7. **每日标签**：`dailyTags` 存在 settings.json 中，默认值为 `["每日任务"]`；新建标签时勾选"每日重置"即加入此列表
 8. **标签创建**：两个处理程序（按钮点击 + Enter 键）必须保持逻辑一致；若标签名已存在不应静默跳过，需给用户 Toast 反馈
 9. **数据安全**：打包版数据在 `%APPDATA%\Daity\Daily\`，不受重建影响；开发版数据在项目根 `Daily\`，不要提交到 git
+10. **任务计时**：`timer` 字段为 `null` 表示未启用；正向模式默认从 0 累加；番茄钟自动循环专注↔休息，`completePhase` 处理阶段切换；计时显示仅更新 `textContent`，不重建 DOM
